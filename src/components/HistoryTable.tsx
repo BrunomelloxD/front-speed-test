@@ -22,6 +22,7 @@ function DeleteButton({ result, onDelete }: { result: SpeedTestResult; onDelete:
   return (
     <button
       type="button"
+      data-delete=""
       onClick={() => onDelete(result.id)}
       className="flex size-11 cursor-pointer items-center justify-center rounded-full text-text-2 transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent"
       aria-label={`Excluir teste de ${date} às ${time}`}
@@ -85,10 +86,10 @@ export function HistoryTable({ results, bestId, onDelete }: HistoryTableProps) {
                 </div>
                 <div className="mt-1 flex items-baseline gap-5 font-mono tabular-nums">
                   <span className="text-[22px] font-medium text-accent">
-                    {formatNumber(r.download_speed)}<span className="ml-1 font-sans text-sm text-text-2" aria-label=" Mbps de download">↓</span>
+                    {formatNumber(r.download_speed)}<span className="ml-1 font-sans text-sm text-text-2" aria-hidden="true">↓</span><span className="sr-only"> Mbps de download</span>
                   </span>
                   <span className="text-[22px] font-medium text-upload">
-                    {formatNumber(r.upload_speed)}<span className="ml-1 font-sans text-sm text-text-2" aria-label=" Mbps de upload">↑</span>
+                    {formatNumber(r.upload_speed)}<span className="ml-1 font-sans text-sm text-text-2" aria-hidden="true">↑</span><span className="sr-only"> Mbps de upload</span>
                   </span>
                   <span className="ml-auto text-[13px] text-text-2">{formatNumber(r.ping, 0)} ms</span>
                 </div>
@@ -103,7 +104,8 @@ export function HistoryTable({ results, bestId, onDelete }: HistoryTableProps) {
 
 export function HistoryTableSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Carregando histórico">
+    <div className="space-y-3" role="status">
+      <span className="sr-only">Carregando histórico…</span>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="h-16 rounded-2xl bg-surface motion-safe:animate-pulse" />
       ))}
