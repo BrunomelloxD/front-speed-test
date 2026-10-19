@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HistoryTable, HistoryTableSkeleton } from '../components/HistoryTable';
 import { getResults, deleteResult } from '../api/speedTestApi';
@@ -10,24 +10,35 @@ export function HistoryPage() {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const fetchResults = useCallback(async (p: number) => {
-    setLoading(true);
-    const response = await getResults(p, 15);
-    setResults(response.data);
-    setPage(response.meta.page);
-    setLastPage(response.meta.last_page);
-    setTotal(response.meta.total);
-    setLoading(false);
-  }, []);
-
+  // Loading starts in the event that triggers the fetch (page change, delete),
+  // so the effect only sets state once the response arrives.
   useEffect(() => {
-    fetchResults(page);
-  }, [page, fetchResults]);
+    let active = true;
+    getResults(page, 15).then((response) => {
+      if (!active) return;
+      setResults(response.data);
+      setPage(response.meta.page);
+      setLastPage(response.meta.last_page);
+      setTotal(response.meta.total);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [page, reloadKey]);
+
+  const goToPage = (next: number) => {
+    if (next === page) return;
+    setLoading(true);
+    setPage(next);
+  };
 
   const handleDelete = async (id: string) => {
     await deleteResult(id);
-    fetchResults(page);
+    setLoading(true);
+    setReloadKey((key) => key + 1);
   };
 
   return (
@@ -63,7 +74,7 @@ export function HistoryPage() {
             {lastPage > 1 && (
               <div className="flex justify-center items-center gap-2 mt-8">
                 <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  onClick={() => goToPage(Math.max(1, page - 1))}
                   disabled={page <= 1}
                   className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed
                     hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none"
@@ -88,7 +99,7 @@ export function HistoryPage() {
                       ) : (
                         <button
                           key={p}
-                          onClick={() => setPage(p)}
+                          onClick={() => goToPage(p)}
                           className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer
                             focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none
                             ${p === page
@@ -103,7 +114,7 @@ export function HistoryPage() {
                 </div>
 
                 <button
-                  onClick={() => setPage(p => Math.min(lastPage, p + 1))}
+                  onClick={() => goToPage(Math.min(lastPage, page + 1))}
                   disabled={page >= lastPage}
                   className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed
                     hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none"
