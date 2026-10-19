@@ -214,7 +214,7 @@ function uploadServer(delayMs: number, ackSize?: (sent: number) => number) {
   const fetch = fakeFetch(
     (_url, init) =>
       new Promise<Response>((resolve, reject) => {
-        const sent = (init!.body as Uint8Array).byteLength;
+        const sent = (init!.body as Blob).size;
         sizes.push(sent);
         inFlight++;
         maxInFlight = Math.max(maxInFlight, inFlight);
@@ -308,6 +308,8 @@ describe('runUpload', () => {
     await runUpload({ baseUrl: BASE, fetch, config: phaseConfig({ durationMs: 200 }) });
 
     assert.ok(inits.every((init) => init.method === 'POST'));
+    // Chromium uploads Blob bodies ~5x faster than ArrayBufferView bodies.
+    assert.ok(inits.every((init) => init.body instanceof Blob));
     assert.ok(inits.every((init) => new Headers(init.headers).get('content-type') === 'application/octet-stream'));
   });
 });

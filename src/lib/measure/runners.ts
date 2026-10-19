@@ -125,15 +125,15 @@ export const UPLOAD_INITIAL_BYTES = 250_000;
 export const UPLOAD_MAX_BYTES = 16_000_000;
 const UPLOAD_GROW_BELOW_MS = 500;
 
-// One random block, tiled once and sliced per request (getRandomValues caps at 65,536 bytes).
-let uploadPayload: Uint8Array<ArrayBuffer> | undefined;
-function getUploadPayload(): Uint8Array<ArrayBuffer> {
+// One random block, tiled once into a Blob and sliced per request (getRandomValues caps
+// at 65,536 bytes). Blob bodies upload ~5x faster than ArrayBufferView bodies in Chromium,
+// and Blob.slice does not copy.
+let uploadPayload: Blob | undefined;
+function getUploadPayload(): Blob {
   if (!uploadPayload) {
     const block = crypto.getRandomValues(new Uint8Array(65_536));
-    uploadPayload = new Uint8Array(new ArrayBuffer(UPLOAD_MAX_BYTES));
-    for (let offset = 0; offset < UPLOAD_MAX_BYTES; offset += block.length) {
-      uploadPayload.set(block.subarray(0, UPLOAD_MAX_BYTES - offset), offset);
-    }
+    const parts = Array.from({ length: Math.ceil(UPLOAD_MAX_BYTES / block.length) }, () => block);
+    uploadPayload = new Blob(parts).slice(0, UPLOAD_MAX_BYTES);
   }
   return uploadPayload;
 }
@@ -162,7 +162,7 @@ export async function runUpload(deps: PhaseDeps): Promise<PhaseResult> {
         const res = await fetch(`${baseUrl}/upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/octet-stream' },
-          body: payload.subarray(0, size),
+          body: payload.slice(0, size),
           cache: 'no-store',
           signal: phaseSignal,
         });
