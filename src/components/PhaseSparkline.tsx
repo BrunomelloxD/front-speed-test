@@ -23,9 +23,10 @@ export function PhaseSparkline({ points, durationMs, tone, compact = false }: Ph
         <figcaption className="mb-2 flex items-center justify-between gap-3 text-[11px] text-muted">
           <span className="flex items-center gap-1.5">
             <span className="inline-block size-2.5 rounded-[3px] bg-hairline" aria-hidden="true" />
-            0–2 s: aquecimento, descartado do resultado
+            <span className="sm:hidden">aquecimento descartado</span>
+            <span className="hidden sm:inline">0–2 s: aquecimento, descartado do resultado</span>
           </span>
-          <span className="font-mono text-xs text-text-2 tabular-nums">
+          <span className="font-mono text-xs whitespace-nowrap text-text-2 tabular-nums">
             {formatNumber(elapsed / 1000)} s de {durationMs / 1000} s
           </span>
         </figcaption>

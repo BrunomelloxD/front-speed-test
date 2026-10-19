@@ -11,7 +11,7 @@ export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => 
           <path d="M8 3.5v5.5 M8 12v.5" />
         </svg>
       </span>
-      <h2 className="mt-6 max-w-[16ch] text-[22px] leading-tight font-semibold tracking-tight text-balance sm:text-[30px]">{title}</h2>
+      <h2 className="mt-6 max-w-[22ch] text-[22px] leading-tight font-semibold tracking-tight text-balance sm:text-[30px]">{title}</h2>
       <p className="mt-3 max-w-[52ch] text-sm leading-relaxed text-text-2 sm:text-base">{cause}</p>
       <div className="mt-6 w-full sm:w-64">
         <PillButton variant="primary" icon="retry" onClick={onRetry}>

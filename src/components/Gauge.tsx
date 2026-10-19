@@ -61,7 +61,8 @@ export function Gauge({ value, state, tone, label, children }: GaugeProps) {
           />
         )}
       </svg>
-      <div className="absolute inset-x-0 top-[40%] flex -translate-y-1/2 flex-col items-center text-center">{children}</div>
+      {/* Centred on the arc centre (cy / height ≈ 59%) so the content never crosses the arc. */}
+      <div className="absolute inset-x-0 top-[59%] flex -translate-y-1/2 flex-col items-center text-center">{children}</div>
     </div>
   );
 }
