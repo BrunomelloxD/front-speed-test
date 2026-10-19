@@ -9,11 +9,17 @@ export function AppHeader({ link }: { link: keyof typeof LINKS }) {
   const target = LINKS[link];
   return (
     <header className="flex items-center justify-between">
+      <a
+        href="#conteudo"
+        className="sr-only rounded-full bg-accent px-5 py-3 text-sm font-semibold text-bg focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-10"
+      >
+        Pular para o conteúdo
+      </a>
       <Link to="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
         <svg viewBox="0 0 24 24" className="size-6 text-accent" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden="true">
           <path d="M13 2 5 13h6l-2 9 9-12h-6z" />
         </svg>
-        <span className="text-lg font-semibold tracking-tight sm:text-xl">Speed Test</span>
+        <span className="text-lg font-semibold tracking-tight sm:text-xl" translate="no">Speed Test</span>
       </Link>
       <Link
         to={target.to}

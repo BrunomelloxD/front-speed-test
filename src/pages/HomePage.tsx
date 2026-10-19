@@ -49,7 +49,7 @@ export function HomePage() {
           {ANNOUNCE[view]}
         </p>
 
-        <main className="mt-6 grid gap-4 lg:mt-8 lg:grid-cols-[640px_1fr] lg:gap-16">
+        <main id="conteudo" tabIndex={-1} className="mt-6 grid gap-4 outline-none lg:mt-8 lg:grid-cols-[640px_1fr] lg:gap-16">
           {/* Double-bezel instrument panel */}
           <section aria-label="Medição" className="rounded-[28px] border border-hairline bg-shell p-1.5 sm:rounded-[32px]">
             <div className="flex min-h-[456px] flex-col rounded-[22px] bg-surface p-5 sm:rounded-[26px] sm:p-8 lg:min-h-[686px]">
@@ -67,7 +67,8 @@ export function HomePage() {
           </section>
 
           <aside className={`flex flex-col gap-4 lg:pt-4 ${view === 'error' ? 'hidden lg:flex' : ''}`}>
-            <h1 className="hidden text-[34px] leading-[1.15] font-semibold tracking-tight lg:block">
+            {/* Visible from lg; below it the panel speaks for itself, but the page still needs its h1. */}
+            <h1 className="sr-only text-[34px] leading-[1.15] font-semibold tracking-tight text-balance lg:not-sr-only">
               {PHASE_TITLE[view][0]}
               <br />
               <span className="text-text-2">{PHASE_TITLE[view][1]}</span>
@@ -98,7 +99,9 @@ export function HomePage() {
           </aside>
         </main>
 
-        <p className="mt-10 font-mono text-xs text-muted">Mbps decimal (bits ÷ 1.000.000) · servidor de teste: Railway</p>
+        <footer className="mt-10 font-mono text-xs text-muted">
+          Mbps decimal (bits ÷ 1.000.000) · servidor de teste: <span translate="no">Railway</span>
+        </footer>
       </div>
     </div>
   );

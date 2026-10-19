@@ -106,8 +106,8 @@ export function HistoryPage() {
       <div className="mx-auto max-w-[1120px] px-4 pt-6 pb-28 sm:px-8 sm:pt-10 xl:px-0">
         <AppHeader link="home" />
 
-        <main className="mt-10 sm:mt-14">
-          <h1 className="text-[30px] font-semibold tracking-tight sm:text-[40px]">Histórico</h1>
+        <main id="conteudo" tabIndex={-1} className="mt-10 outline-none sm:mt-14">
+          <h1 className="text-[30px] font-semibold tracking-tight text-balance sm:text-[40px]">Histórico</h1>
           <p className="mt-1.5 text-sm text-text-2 sm:text-[15px]" aria-live="polite">
             {status === 'ready' &&
               total > 0 &&
