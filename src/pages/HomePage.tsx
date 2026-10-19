@@ -127,7 +127,7 @@ function MeasureView({ test, durationMs }: { test: TestState; durationMs: number
           {phase === 'idle' && (
             <>
               <p className="text-lg font-semibold sm:text-[22px]">Pronto para medir</p>
-              <p className="mt-1 text-[13px] text-text-2 sm:text-[15px]">~{Math.round((2 * durationMs + 4000) / 1000)} s · conexões paralelas</p>
+              <p className="mt-1 text-[13px] text-text-2 sm:text-[15px]">~{Math.round((2 * durationMs + 4000) / 1000)}&nbsp;s · conexões paralelas</p>
             </>
           )}
           {phase === 'ping' && (
@@ -158,7 +158,7 @@ function MeasureView({ test, durationMs }: { test: TestState; durationMs: number
         )}
         {phase === 'idle' && (
           <InfoBox title="Como medimos">
-            Conexões paralelas por {durationMs / 1000} s em cada sentido. Os 2 s iniciais são descartados. Mede até o servidor de teste (Railway), não até o provedor.
+            Conexões paralelas por {durationMs / 1000}&nbsp;s em cada sentido. Os 2&nbsp;s iniciais são descartados. Mede até o servidor de teste (Railway), não até o provedor.
           </InfoBox>
         )}
       </div>
