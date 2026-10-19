@@ -1,36 +1,44 @@
 @import "tailwindcss";
 
+/* Direction A "Instrumento": .specs/front/direcoes.md */
 @theme {
-  --color-gauge-low: #22d3ee;
-  --color-gauge-mid: #a78bfa;
-  --color-gauge-high: #f43f5e;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-bg: #0b0d10;
+  --color-surface: #13171c;
+  --color-shell: rgb(255 255 255 / 0.03);
+  --color-hairline: rgb(255 255 255 / 0.08);
+  --color-track: rgb(255 255 255 / 0.07);
+  --color-text: #edeff2;
+  --color-text-2: #9aa3ae;
+  /* #6b7480 failed AA on small text (3.8:1 on surface); #808995 ≥ 4.73:1 on bg/surface/shell. */
+  --color-muted: #808995;
+  --color-accent: #c8f169;
+  --color-upload: #7cc4ff;
+  --color-danger: #ff8a7a;
+
+  --ease-instrument: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-slate-950 text-white antialiased;
+    @apply bg-bg text-text font-sans antialiased;
+  }
+  a,
+  button,
+  summary {
+    touch-action: manipulation;
   }
 }
 
-@layer utilities {
-  .text-shadow-glow {
-    text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
-  }
-}
-
-@keyframes gauge-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-@keyframes fade-in {
+@keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fade-in-scale {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
