@@ -287,6 +287,49 @@ describe('runUpload', () => {
     assert.ok(elapsed >= 300 && elapsed <= 550, `took ${elapsed} ms`);
   });
 
+  test('SPEC_DEVIATION (MEAS-03/07): the upload window ends at the last confirmation, not at the deadline', async () => {
+    // Each connection's first request is confirmed after 50 ms; the next ones never finish
+    // and are aborted at the 400 ms deadline.
+    const ends: number[] = [];
+    let call = 0;
+    const fetch = fakeFetch(
+      (_url, init) =>
+        new Promise<Response>((resolve, reject) => {
+          const sent = (init!.body as Blob).size;
+          const fast = ++call <= 4;
+          const timer = setTimeout(() => {
+            ends.push(performance.now());
+            resolve(Response.json({ size: sent, timestamp: Date.now() }));
+          }, fast ? 50 : 5000);
+          init!.signal!.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(init!.signal!.reason);
+          });
+        }),
+    );
+
+    const result = await runUpload({ baseUrl: BASE, fetch, config: phaseConfig({ connections: 4, durationMs: 400 }) });
+
+    const last = result.samples[result.samples.length - 1];
+    assert.equal(result.bytes, 4 * 250_000);
+    assert.equal(last.bytes, result.bytes);
+    assert.ok(last.t < 150, `window ends at ${last.t} ms, not at the 400 ms deadline`);
+    // Phase shorter than warm-up + 1 s: whole window up to the last confirmation (MEAS-04).
+    const expected = (result.bytes * 8) / (last.t / 1000) / 1e6;
+    assert.ok(Math.abs(result.mbps - expected) < 1e-6, `${result.mbps} != ${expected}`);
+  });
+
+  test('edge: on a slow link (~5 Mbps) every connection still confirms its first request', async () => {
+    // 250,000 bytes over 6 connections sharing 5 Mbps take ~2.4 s each.
+    const server = uploadServer(2400);
+
+    const result = await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ connections: 6, durationMs: 3000 }) });
+
+    assert.equal(server.confirmed.length, 6);
+    assert.equal(result.bytes, 6 * 250_000);
+    assert.ok(result.mbps > 0);
+  });
+
   test('VAL-03: a size different from what was sent fails the phase', async () => {
     const server = uploadServer(5, () => 0);
 
