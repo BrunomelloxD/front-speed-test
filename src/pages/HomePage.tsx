@@ -68,7 +68,7 @@ export function HomePage() {
             </div>
           </section>
 
-          <aside className={`flex flex-col gap-4 lg:pt-4 ${view === 'error' ? 'hidden lg:flex' : ''}`}>
+          <aside className="flex flex-col gap-4 lg:pt-4">
             {/* Visible from lg; below it the panel speaks for itself, but the page still needs its h1. */}
             <h1 className="sr-only text-[34px] leading-[1.15] font-semibold tracking-tight text-balance lg:not-sr-only">
               {PHASE_TITLE[view][0]}
@@ -76,7 +76,8 @@ export function HomePage() {
               <span className="text-text-2">{PHASE_TITLE[view][1]}</span>
             </h1>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:mt-4">
+            {/* On small screens the error panel says it all; the h1 above stays for every viewport. */}
+            <div className={`grid-cols-2 gap-3 sm:gap-4 lg:mt-4 ${view === 'error' ? 'hidden lg:grid' : 'grid'}`}>
               <MetricTile label="Download" value={test.downloadSpeed} unit="Mbps" state={tileState('download')} tone="accent" />
               <MetricTile label="Upload" value={test.uploadSpeed} unit="Mbps" state={tileState('upload')} tone="upload" />
               <MetricTile label="Latência" value={test.ping} unit="ms" state={pingDone && !failure ? 'final' : 'empty'} tone="neutral" />
@@ -97,7 +98,9 @@ export function HomePage() {
               </div>
             )}
 
-            <AsideNote view={view} saveError={test.saveError} />
+            <div className={view === 'error' ? 'hidden lg:block' : undefined}>
+              <AsideNote view={view} saveError={test.saveError} />
+            </div>
           </aside>
         </main>
 
