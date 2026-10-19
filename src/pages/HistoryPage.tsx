@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader';
 import { HistoryTable, HistoryTableSkeleton } from '../components/HistoryTable';
 import { PillButton } from '../components/PillButton';
 import { getResults, deleteResult } from '../api/speedTestApi';
+import { restoreAt, withoutPending } from '../lib/ui/history';
 import type { SpeedTestResult } from '../types/speedTest';
 
 const UNDO_MS = 5000;
@@ -27,10 +28,13 @@ export function HistoryPage() {
     getResults(page, 15)
       .then((response) => {
         if (!active) return;
-        setResults(response.data);
+        // A row waiting for "Desfazer" still exists on the server: keep it hidden.
+        const pendingId = pendingRef.current?.item.id ?? null;
+        const visible = withoutPending(response.data, pendingId);
+        setResults(visible);
         setPage(response.meta.page);
         setLastPage(response.meta.last_page);
-        setTotal(response.meta.total);
+        setTotal(response.meta.total - (response.data.length - visible.length));
         setStatus('ready');
       })
       .catch(() => active && setStatus('error'));
@@ -68,7 +72,11 @@ export function HistoryPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (pendingRef.current) commitDelete(pendingRef.current.item.id);
+    const previous = pendingRef.current;
+    if (previous) {
+      clearTimeout(previous.timer);
+      commitDelete(previous.item.id);
+    }
     const index = results.findIndex((r) => r.id === id);
     if (index < 0) return;
     const item = results[index];
@@ -85,7 +93,9 @@ export function HistoryPage() {
     clearTimeout(current.timer);
     pendingRef.current = null;
     setPending(null);
-    setResults((list) => [...list.slice(0, current.index), current.item, ...list.slice(current.index)]);
+    const restored = restoreAt(results, current.item, current.index);
+    if (restored === results) return;
+    setResults(restored);
     setTotal((t) => t + 1);
   };
 
