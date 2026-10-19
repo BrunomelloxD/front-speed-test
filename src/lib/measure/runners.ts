@@ -1,7 +1,7 @@
 import type { MeasureConfig } from './config.ts';
 import { pingStats } from './latency.ts';
-import { assertDownloadResponse, assertPong } from './responseGuards.ts';
-import { liveMbps, stableMbps, type Sample } from './throughput.ts';
+import { assertDownloadResponse, assertPong, assertUploadAck } from './responseGuards.ts';
+import { confirmedSeries, liveMbps, stableMbps, type ConfirmedRequest, type Sample } from './throughput.ts';
 
 export type RunnerDeps = {
   /** `${origin}/api/speed-tests` from apiBaseUrl.ts */
@@ -119,4 +119,69 @@ export async function runDownload(deps: PhaseDeps): Promise<PhaseResult> {
   record();
 
   return { mbps: stableMbps(samples, config.warmupMs), bytes: received, samples };
+}
+
+export const UPLOAD_INITIAL_BYTES = 250_000;
+export const UPLOAD_MAX_BYTES = 16_000_000;
+const UPLOAD_GROW_BELOW_MS = 500;
+
+// One random block, tiled once and sliced per request (getRandomValues caps at 65,536 bytes).
+let uploadPayload: Uint8Array<ArrayBuffer> | undefined;
+function getUploadPayload(): Uint8Array<ArrayBuffer> {
+  if (!uploadPayload) {
+    const block = crypto.getRandomValues(new Uint8Array(65_536));
+    uploadPayload = new Uint8Array(new ArrayBuffer(UPLOAD_MAX_BYTES));
+    for (let offset = 0; offset < UPLOAD_MAX_BYTES; offset += block.length) {
+      uploadPayload.set(block.subarray(0, UPLOAD_MAX_BYTES - offset), offset);
+    }
+  }
+  return uploadPayload;
+}
+
+/**
+ * Parallel, time-bound upload measured only from server-confirmed bytes (MEAS-07).
+ * Request size starts at 250,000 bytes and doubles while requests take < 500 ms (MEAS-11).
+ */
+export async function runUpload(deps: PhaseDeps): Promise<PhaseResult> {
+  const { baseUrl, fetch, config, onLive, now = () => performance.now() } = deps;
+  const payload = getUploadPayload();
+  const t0 = now();
+  const confirmed: ConfirmedRequest[] = [];
+  const times: number[] = [0];
+  const record = () => {
+    times.push(now() - t0);
+    onLive?.(liveMbps(confirmedSeries(confirmed, times)));
+  };
+
+  const sampler = setInterval(record, config.sampleMs);
+  try {
+    await runParallel(deps, async (phaseSignal) => {
+      let size = UPLOAD_INITIAL_BYTES;
+      while (!phaseSignal.aborted) {
+        const start = now() - t0;
+        const res = await fetch(`${baseUrl}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: payload.subarray(0, size),
+          cache: 'no-store',
+          signal: phaseSignal,
+        });
+        assertUploadAck(await readJson(res), size);
+        const end = now() - t0;
+        confirmed.push({ start, end, bytes: size });
+        if (end - start < UPLOAD_GROW_BELOW_MS) size = Math.min(size * 2, UPLOAD_MAX_BYTES);
+      }
+    });
+  } finally {
+    clearInterval(sampler);
+  }
+
+  // SPEC_DEVIATION: MEAS-03's t_end is the last confirmation for uploads, not the deadline.
+  // Reason: bytes still in flight at the deadline are never confirmed (MEAS-07), so
+  // counting their time would understate the rate.
+  const lastConfirmation = Math.max(0, ...confirmed.map((request) => request.end));
+  const samples = confirmedSeries(confirmed, [...times.filter((t) => t < lastConfirmation), lastConfirmation]);
+  const bytes = confirmed.reduce((sum, request) => sum + request.bytes, 0);
+
+  return { mbps: stableMbps(samples, config.warmupMs), bytes, samples };
 }

@@ -1,6 +1,13 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DOWNLOAD_REQUEST_BYTES, runDownload, runPing } from './runners.ts';
+import {
+  DOWNLOAD_REQUEST_BYTES,
+  runDownload,
+  runPing,
+  runUpload,
+  UPLOAD_INITIAL_BYTES,
+  UPLOAD_MAX_BYTES,
+} from './runners.ts';
 import { InvalidApiResponseError } from './responseGuards.ts';
 
 const BASE = 'https://api.exemplo.com/api/speed-tests';
@@ -195,5 +202,112 @@ describe('runDownload', () => {
       runDownload({ baseUrl: BASE, fetch, signal: controller.signal, config: phaseConfig({ durationMs: 5000 }) }),
       { name: 'AbortError' },
     );
+  });
+});
+
+// Upload endpoint double: acknowledges after `delayMs` with the received size (or `ackSize`).
+function uploadServer(delayMs: number, ackSize?: (sent: number) => number) {
+  const sizes: number[] = [];
+  const confirmed: number[] = [];
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const fetch = fakeFetch(
+    (_url, init) =>
+      new Promise<Response>((resolve, reject) => {
+        const sent = (init!.body as Uint8Array).byteLength;
+        sizes.push(sent);
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        const timer = setTimeout(() => {
+          inFlight--;
+          confirmed.push(sent);
+          resolve(Response.json({ size: ackSize ? ackSize(sent) : sent, timestamp: Date.now() }));
+        }, delayMs);
+        init!.signal!.addEventListener('abort', () => {
+          clearTimeout(timer);
+          inFlight--;
+          reject(init!.signal!.reason);
+        });
+      }),
+  );
+  return { fetch, sizes, confirmed, maxInFlight: () => maxInFlight };
+}
+
+describe('runUpload', () => {
+  test('MEAS-11: starts at 250,000 bytes and doubles fast requests up to 16,000,000', async () => {
+    const server = uploadServer(5);
+
+    await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ connections: 4, durationMs: 400 }) });
+
+    assert.equal(UPLOAD_INITIAL_BYTES, 250_000);
+    assert.equal(UPLOAD_MAX_BYTES, 16_000_000);
+    assert.deepEqual(server.sizes.slice(0, 4), [250_000, 250_000, 250_000, 250_000]);
+    const allowed = new Set([250_000, 500_000, 1_000_000, 2_000_000, 4_000_000, 8_000_000, 16_000_000]);
+    assert.ok(server.sizes.every((size) => allowed.has(size)), `sizes ${[...new Set(server.sizes)]}`);
+    assert.equal(Math.max(...server.sizes), 16_000_000);
+  });
+
+  test('MEAS-11: a request slower than 500 ms keeps the size', async () => {
+    const server = uploadServer(600);
+
+    await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ connections: 4, durationMs: 1500 }) });
+
+    assert.ok(server.sizes.length > 4, 'each connection sent a second request');
+    assert.ok(server.sizes.every((size) => size === 250_000));
+  });
+
+  test('MEAS-07: counts only server-confirmed bytes', async () => {
+    const server = uploadServer(20);
+
+    const result = await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ durationMs: 300 }) });
+
+    const confirmed = server.confirmed.reduce((sum, size) => sum + size, 0);
+    assert.equal(result.bytes, confirmed);
+    assert.ok(result.mbps > 0);
+  });
+
+  test('MEAS-07: requests aborted at the deadline count zero', async () => {
+    const server = uploadServer(5000);
+
+    const result = await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ durationMs: 300 }) });
+
+    assert.equal(server.confirmed.length, 0);
+    assert.equal(result.bytes, 0);
+    assert.equal(result.mbps, 0);
+  });
+
+  test('MEAS-01/02: exactly `connections` in flight and ends at the deadline', async () => {
+    const server = uploadServer(50);
+
+    const started = performance.now();
+    await runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ connections: 6, durationMs: 300 }) });
+    const elapsed = performance.now() - started;
+
+    assert.equal(server.maxInFlight(), 6);
+    assert.ok(elapsed >= 300 && elapsed <= 550, `took ${elapsed} ms`);
+  });
+
+  test('VAL-03: a size different from what was sent fails the phase', async () => {
+    const server = uploadServer(5, () => 0);
+
+    await assert.rejects(
+      runUpload({ baseUrl: BASE, fetch: server.fetch, config: phaseConfig({ durationMs: 5000 }) }),
+      InvalidApiResponseError,
+    );
+  });
+
+  test('posts octet-stream to {base}/upload', async () => {
+    const inits: RequestInit[] = [];
+    const server = uploadServer(5);
+    const fetch = fakeFetch((url, init) => {
+      inits.push(init!);
+      assert.equal(url, `${BASE}/upload`);
+      return server.fetch(url, init);
+    });
+
+    await runUpload({ baseUrl: BASE, fetch, config: phaseConfig({ durationMs: 200 }) });
+
+    assert.ok(inits.every((init) => init.method === 'POST'));
+    assert.ok(inits.every((init) => new Headers(init.headers).get('content-type') === 'application/octet-stream'));
   });
 });
