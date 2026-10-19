@@ -1,134 +1,180 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AppHeader } from '../components/AppHeader';
 import { HistoryTable, HistoryTableSkeleton } from '../components/HistoryTable';
+import { PillButton } from '../components/PillButton';
 import { getResults, deleteResult } from '../api/speedTestApi';
 import type { SpeedTestResult } from '../types/speedTest';
+
+const UNDO_MS = 5000;
+
+type Pending = { item: SpeedTestResult; index: number; timer: ReturnType<typeof setTimeout> };
 
 export function HistoryPage() {
   const [results, setResults] = useState<SpeedTestResult[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reloadKey, setReloadKey] = useState(0);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const pendingRef = useRef<Pending | null>(null);
 
-  // Loading starts in the event that triggers the fetch (page change, delete),
+  // Loading starts in the event that triggers the fetch (page change, retry, delete),
   // so the effect only sets state once the response arrives.
   useEffect(() => {
     let active = true;
-    getResults(page, 15).then((response) => {
-      if (!active) return;
-      setResults(response.data);
-      setPage(response.meta.page);
-      setLastPage(response.meta.last_page);
-      setTotal(response.meta.total);
-      setLoading(false);
-    });
+    getResults(page, 15)
+      .then((response) => {
+        if (!active) return;
+        setResults(response.data);
+        setPage(response.meta.page);
+        setLastPage(response.meta.last_page);
+        setTotal(response.meta.total);
+        setStatus('ready');
+      })
+      .catch(() => active && setStatus('error'));
     return () => {
       active = false;
     };
   }, [page, reloadKey]);
 
-  const goToPage = (next: number) => {
-    if (next === page) return;
-    setLoading(true);
-    setPage(next);
-  };
+  // A deletion still waiting for "Desfazer" is committed when leaving the page.
+  useEffect(
+    () => () => {
+      if (pendingRef.current) {
+        clearTimeout(pendingRef.current.timer);
+        void deleteResult(pendingRef.current.item.id);
+      }
+    },
+    [],
+  );
 
-  const handleDelete = async (id: string) => {
-    await deleteResult(id);
-    setLoading(true);
+  const reload = () => {
+    setStatus('loading');
     setReloadKey((key) => key + 1);
   };
 
+  const goToPage = (next: number) => {
+    if (next === page) return;
+    setStatus('loading');
+    setPage(next);
+  };
+
+  const commitDelete = (id: string) => {
+    pendingRef.current = null;
+    setPending(null);
+    deleteResult(id).finally(reload);
+  };
+
+  const handleDelete = (id: string) => {
+    if (pendingRef.current) commitDelete(pendingRef.current.item.id);
+    const index = results.findIndex((r) => r.id === id);
+    if (index < 0) return;
+    const item = results[index];
+    const next: Pending = { item, index, timer: setTimeout(() => commitDelete(id), UNDO_MS) };
+    pendingRef.current = next;
+    setPending(next);
+    setResults((list) => list.filter((r) => r.id !== id));
+    setTotal((t) => t - 1);
+  };
+
+  const undo = () => {
+    const current = pendingRef.current;
+    if (!current) return;
+    clearTimeout(current.timer);
+    pendingRef.current = null;
+    setPending(null);
+    setResults((list) => [...list.slice(0, current.index), current.item, ...list.slice(current.index)]);
+    setTotal((t) => t + 1);
+  };
+
+  const bestId = results.length ? results.reduce((best, r) => (r.download_speed > best.download_speed ? r : best)).id : null;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-4 py-8 sm:py-12">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Histórico</h1>
-            {!loading && (
-              <p className="text-xs text-slate-500 mt-1">{total} teste{total !== 1 ? 's' : ''} registrado{total !== 1 ? 's' : ''}</p>
-            )}
-          </div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-cyan-400 transition-colors
-              focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none rounded px-2 py-1"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Novo teste
-          </Link>
-        </div>
+    <div className="min-h-dvh bg-bg">
+      <div className="mx-auto max-w-[1120px] px-4 pt-6 pb-28 sm:px-8 sm:pt-10 xl:px-0">
+        <AppHeader link="home" />
 
-        {/* Content */}
-        {loading ? (
-          <HistoryTableSkeleton />
-        ) : (
-          <>
-            <HistoryTable results={results} onDelete={handleDelete} />
+        <main className="mt-10 sm:mt-14">
+          <h1 className="text-[30px] font-semibold tracking-tight sm:text-[40px]">Histórico</h1>
+          <p className="mt-1.5 text-sm text-text-2 sm:text-[15px]" aria-live="polite">
+            {status === 'ready' &&
+              total > 0 &&
+              `${total} teste${total === 1 ? '' : 's'} neste dispositivo · medidos até o servidor de teste (Railway)`}
+          </p>
 
-            {lastPage > 1 && (
-              <div className="flex justify-center items-center gap-2 mt-8">
-                <button
-                  onClick={() => goToPage(Math.max(1, page - 1))}
-                  disabled={page <= 1}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed
-                    hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none"
-                  aria-label="Página anterior"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
+          <div className="mt-6 sm:mt-8">
+            {status === 'loading' && <HistoryTableSkeleton />}
 
-                <div className="flex items-center gap-1 px-3">
-                  {Array.from({ length: lastPage }, (_, i) => i + 1)
-                    .filter(p => p === 1 || p === lastPage || Math.abs(p - page) <= 1)
-                    .reduce<(number | '...')[]>((acc, p, idx, arr) => {
-                      if (idx > 0 && p - (arr[idx - 1]) > 1) acc.push('...');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === '...' ? (
-                        <span key={`dots-${i}`} className="text-slate-600 px-1">...</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => goToPage(p)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors cursor-pointer
-                            focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none
-                            ${p === page
-                              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                              : 'text-slate-500 hover:text-white hover:bg-slate-800'
-                            }`}
-                        >
-                          {p}
-                        </button>
-                      )
-                  )}
+            {status === 'error' && (
+              <div role="alert" className="rounded-[22px] border border-hairline bg-surface p-6 sm:p-8">
+                <p className="text-lg font-semibold">Não foi possível carregar o histórico.</p>
+                <p className="mt-1.5 text-sm text-text-2">O servidor de teste não respondeu. Seus resultados continuam salvos.</p>
+                <div className="mt-6 sm:w-64">
+                  <PillButton variant="secondary" icon="retry" onClick={reload}>
+                    Tentar de novo
+                  </PillButton>
                 </div>
-
-                <button
-                  onClick={() => goToPage(Math.min(lastPage, page + 1))}
-                  disabled={page >= lastPage}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed
-                    hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none"
-                  aria-label="Próxima página"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
               </div>
             )}
-          </>
-        )}
+
+            {status === 'ready' && results.length === 0 && (
+              <div className="rounded-[22px] border border-hairline bg-surface p-8 text-center sm:p-12">
+                <p className="text-lg font-semibold">Nenhum teste ainda.</p>
+                <p className="mt-1.5 text-sm text-text-2">Os resultados aparecem aqui depois de cada medição.</p>
+                <Link
+                  to="/"
+                  className="mt-6 inline-flex min-h-11 items-center rounded-full bg-accent px-6 text-[15px] font-semibold text-bg transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+                >
+                  Fazer o primeiro teste
+                </Link>
+              </div>
+            )}
+
+            {status === 'ready' && results.length > 0 && <HistoryTable results={results} bestId={bestId} onDelete={handleDelete} />}
+
+            {status === 'ready' && lastPage > 1 && (
+              <nav aria-label="Páginas do histórico" className="mt-6 flex items-center justify-center gap-2 font-mono text-sm">
+                <button
+                  type="button"
+                  onClick={() => goToPage(Math.max(1, page - 1))}
+                  disabled={page <= 1}
+                  className="min-h-11 cursor-pointer rounded-full border border-hairline px-4 text-text-2 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  Anterior
+                </button>
+                <span className="px-3 text-text-2" aria-current="page">
+                  {page} de {lastPage}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goToPage(Math.min(lastPage, page + 1))}
+                  disabled={page >= lastPage}
+                  className="min-h-11 cursor-pointer rounded-full border border-hairline px-4 text-text-2 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  Próxima
+                </button>
+              </nav>
+            )}
+          </div>
+        </main>
       </div>
+
+      {pending && (
+        <div className="fixed inset-x-4 bottom-6 mx-auto flex max-w-sm items-center justify-between gap-4 rounded-full border border-hairline bg-surface py-2 pr-2 pl-6 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.6)] motion-safe:animate-[fade-up_300ms_var(--ease-instrument)_both]">
+          <p role="status" className="text-sm font-medium">
+            Teste de {new Date(pending.item.tested_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} excluído
+          </p>
+          <button
+            type="button"
+            onClick={undo}
+            className="min-h-11 cursor-pointer rounded-full px-4 text-sm font-semibold text-accent hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Desfazer
+          </button>
+        </div>
+      )}
     </div>
   );
 }

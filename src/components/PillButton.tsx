@@ -21,7 +21,7 @@ export function PillButton({ variant, icon, children, className = '', ...rest }:
       className={`group flex h-14 w-full cursor-pointer items-center justify-between rounded-full pr-1.5 pl-7 text-[17px] font-semibold
         transition-[transform,background-color,border-color] duration-300 ease-instrument active:scale-[0.98]
         focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent sm:h-16
-        ${primary ? 'bg-accent text-bg hover:bg-[#d3f584]' : 'border border-hairline text-text hover:border-text-2/40 hover:bg-white/[0.03]'}
+        ${primary ? 'bg-accent text-bg hover:bg-[#d3f584]' : 'border border-hairline text-text hover:border-text-2/40 hover:bg-white/3'}
         ${className}`}
       {...rest}
     >
