@@ -39,7 +39,7 @@ export function MetricTile({ label, value, unit, state, tone }: MetricTileProps)
         {state === 'live' && <span className={`size-2 rounded-full bg-current ${TONE_TEXT[tone]}`} aria-hidden="true" />}
         {state === 'final' && <span className={`size-1.5 rounded-sm bg-current ${TONE_TEXT[tone]}`} aria-hidden="true" />}
       </div>
-      <p className="flex items-baseline gap-1.5">
+      <p className="flex flex-wrap items-baseline gap-x-1.5">
         <span
           className={`font-mono text-[28px] font-medium tabular-nums sm:text-[38px] ${
             shown === null ? 'text-muted' : state === 'live' ? 'text-text-2' : 'text-text'
