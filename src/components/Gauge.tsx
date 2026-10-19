@@ -57,7 +57,7 @@ export function Gauge({ value, state, tone, label, children }: GaugeProps) {
             strokeWidth={3}
             strokeLinecap="round"
             className={`${state === 'live' ? 'text-text' : toneClass} transition-transform duration-[400ms] ease-instrument`}
-            style={{ transform: `rotate(${angle}deg)`, transformOrigin: `${cx}px ${cy}px` }}
+            style={{ transform: `rotate(${angle}deg)`, transformBox: 'view-box', transformOrigin: `${cx}px ${cy}px` }}
           />
         )}
       </svg>

@@ -46,7 +46,9 @@ export function HomePage() {
       <div className="mx-auto max-w-[1120px] px-4 pt-6 pb-10 sm:px-8 sm:pt-10 xl:px-0">
         <AppHeader link="history" />
         <p className="sr-only" aria-live="polite">
-          {ANNOUNCE[view]}
+          {view === 'done'
+            ? `Teste concluído. Download ${formatNumber(test.downloadSpeed)} megabits por segundo, upload ${formatNumber(test.uploadSpeed)}, latência ${formatNumber(test.ping)} milissegundos.`
+            : ANNOUNCE[view]}
         </p>
 
         <main id="conteudo" tabIndex={-1} className="mt-6 grid gap-4 outline-none lg:mt-8 lg:grid-cols-[640px_1fr] lg:gap-16">
